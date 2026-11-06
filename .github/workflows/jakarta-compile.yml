@@ -1,0 +1,38 @@
+name: Compilar módulos Jakarta EE 9.1
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Obter API oficial da plataforma 9.1 declarada no NetBeans
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://repo.maven.apache.org/maven2/jakarta/platform/jakarta.jakartaee-api/9.1.0/jakarta.jakartaee-api-9.1.0.jar \
+            --output "$RUNNER_TEMP/jakarta.jakartaee-api-9.1.0.jar"
+      - name: Compilar entidades e EJBs reais sem executar JPA
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/cadastro-ejb"
+          find CadastroEE-ejb/src/java -name '*.java' -print0 | \
+            xargs -0 javac --release 11 -encoding UTF-8 -proc:none \
+              -classpath "$RUNNER_TEMP/jakarta.jakartaee-api-9.1.0.jar" \
+              -d "$RUNNER_TEMP/cadastro-ejb"
+      - name: Compilar Servlets reais contra os EJBs e a API Jakarta
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/cadastro-war"
+          find CadastroEE-war/src/java -name '*.java' -print0 | \
+            xargs -0 javac --release 11 -encoding UTF-8 -proc:none \
+              -classpath "$RUNNER_TEMP/jakarta.jakartaee-api-9.1.0.jar:$RUNNER_TEMP/cadastro-ejb" \
+              -d "$RUNNER_TEMP/cadastro-war"
